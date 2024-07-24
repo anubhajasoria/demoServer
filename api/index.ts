@@ -1,153 +1,86 @@
 const express = require("express");
-const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-
-// Initialize express app
+const { db } = require("../models/Event");
 const app = express();
-app.use(bodyParser.json());
+const port = process.env.PORT || 3000;
+const dotenv = require("dotenv");
+dotenv.config();
 
-// Connect to MongoDB
-mongoose.connect("mongodb://localhost/eventBooking", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
-// Event Schema
+const MONGODB_URI =
+  "mongodb+srv://anubhajasoria:NV1xarV0sGZNXK4p@cluster0.lowdfg7.mongodb.net/eventBooking?retryWrites=true&w=majority";
 const eventSchema = new mongoose.Schema({
-  name: { type: String, required: true },
+  // Define your schema here based on your collection structure
+  name: String,
   subText: String,
-  date: { type: Date, required: true },
-  location: { type: String, required: true },
-  totalTickets: { type: Number, required: true },
-  ticketsLeft: { type: Number, required: true },
+  date: Date,
+  location: String,
+  totalTickets: Number,
+  ticketsLeft: Number,
   description: String,
   priceLower: Number,
   priceHigher: Number,
+  // Add other fields as needed
 });
 
 const Event = mongoose.model("Event", eventSchema);
 
-// Booking Schema
-const bookingSchema = new mongoose.Schema({
-  eventId: { type: mongoose.Schema.Types.ObjectId, required: true },
-  userId: { type: String, required: true },
-  organization: { type: String, required: true },
-  jobDescription: { type: String, required: true },
-  isStudent: { type: Boolean, required: true },
-  heardFrom: { type: String, required: true },
-  status: { type: String, default: "pending" },
-});
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log(
+      "MongoDB connected",
+      db.listCollections().then(async (res) => {
+        // let te = await res.json();
+        console.log(res);
+      })
+    );
+    // Check if collection exists
+    mongoose.connection.db
+      .listCollections({ name: "event" })
+      .next((err, collectionInfo) => {
+        if (err) {
+          console.error("Error listing collections:", err);
+        } else if (collectionInfo) {
+          console.log('Collection "event" exists.');
+        } else {
+          console.log('Collection "event" does not exist.');
+        }
+      });
+  })
+  .catch((err) => console.error("MongoDB connection error:", err));
+// Define a schema and model for your collection
+// const eventSchema = new mongoose.Schema({
+//   // Define your schema here based on your collection structure
+//   name: String,
+//   subText: String,
+//   date: Date,
+//   location: String,
+//   totalTickets: Number,
+//   ticketsLeft: Number,
+//   description: String,
+//   priceLower: Number,
+//   priceHigher: Number,
+//   // Add other fields as needed
+// });
 
-const Booking = mongoose.model("Booking", bookingSchema);
+// const Event = mongoose.model("Event", eventSchema);
 
-// Routes
-app.get("/events", async (req, res) => {
+// Define a route to fetch the record
+app.get("/api/events", async (req, res) => {
+  console.log("Request received");
   try {
     const events = await Event.find();
+    console.log("Events found:", events);
     res.json(events);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+    console.error("Error fetching events:", error);
+    res.status(500).send("Internal Server Error");
   }
 });
 
-app.post("/book", async (req, res) => {
-  const {
-    eventId,
-    userId,
-    organization,
-    jobDescription,
-    isStudent,
-    heardFrom,
-  } = req.body;
-
-  if (
-    !eventId ||
-    !userId ||
-    !organization ||
-    !jobDescription ||
-    isStudent == null ||
-    !heardFrom
-  ) {
-    return res.status(400).json({ message: "All fields are required" });
-  }
-
-  try {
-    const event = await Event.findById(eventId);
-    if (!event) {
-      return res.status(404).json({ message: "Event not found" });
-    }
-
-    if (event.ticketsLeft <= 0) {
-      return res
-        .status(400)
-        .json({ message: "No tickets left for this event" });
-    }
-
-    const booking = new Booking({
-      eventId,
-      userId,
-      organization,
-      jobDescription,
-      isStudent,
-      heardFrom,
-    });
-
-    await booking.save();
-
-    // Update tickets left
-    event.ticketsLeft -= 1;
-    await event.save();
-
-    res.status(201).json(booking);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Add new event route
-app.post("/events", async (req, res) => {
-  const {
-    name,
-    subText,
-    date,
-    location,
-    totalTickets,
-    ticketsLeft,
-    description,
-    priceLower,
-    priceHigher,
-  } = req.body;
-
-  if (!name || !date || !location || !totalTickets || ticketsLeft == null) {
-    return res.status(400).json({ message: "Required fields are missing" });
-  }
-
-  try {
-    const event = new Event({
-      name,
-      subText,
-      date,
-      location,
-      totalTickets,
-      ticketsLeft,
-      description,
-      priceLower,
-      priceHigher,
-    });
-
-    await event.save();
-    res.status(201).json(event);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send("Something broke!");
-});
-
-app.listen(3000, () => {
-  console.log("Server is running on port 3000");
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
 });
